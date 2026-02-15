@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const marksSchema = new mongoose.Schema({
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, index: true },
     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', index: true },
     category: { type: String, enum: ['school', 'tuition'], required: true },
     subject: { type: String, required: true },
     unitName: { type: String, required: true },
@@ -18,13 +19,12 @@ const marksSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-calculate percentage before saving
-marksSchema.pre('save', function (next) {
+marksSchema.pre('save', function () {
     if (this.totalMarks > 0) {
         this.percentage = parseFloat(((this.marksObtained / this.totalMarks) * 100).toFixed(2));
     } else {
         this.percentage = 0;
     }
-    next();
 });
 
 module.exports = mongoose.model('Marks', marksSchema);

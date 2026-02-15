@@ -4,6 +4,11 @@ const Student = require('../models/Student');
 const emailService = require('./emailService');
 const mongoose = require('mongoose');
 
+const calculatePercentage = (obtained, total) => {
+    if (!total || total <= 0) return 0;
+    return parseFloat(((obtained / total) * 100).toFixed(2));
+};
+
 const marksService = {
 
     submitSchoolMarks: async (data, studentUserId) => {
@@ -19,6 +24,7 @@ const marksService = {
         const mark = new Marks({
             studentId: student._id,
             teacherId: student.teacherId,
+            batchId: student.batchId,
             category: 'school',
             subject,
             unitName,
@@ -30,14 +36,13 @@ const marksService = {
         });
 
         await mark.save();
-
-        // Optional: Notify teacher via email/announcement
         return mark;
     },
 
     addTuitionMarks: async (data, teacherId) => {
         const { studentId, subject, unitName, marksObtained, totalMarks, examDate } = data;
 
+        const student = await Student.findById(studentId);
         if (Number(marksObtained) > Number(totalMarks)) {
             throw new Error('Marks obtained cannot exceed total marks');
         }
@@ -45,6 +50,7 @@ const marksService = {
         const mark = new Marks({
             studentId,
             teacherId,
+            batchId: student?.batchId,
             category: 'tuition',
             subject,
             unitName,
@@ -58,6 +64,35 @@ const marksService = {
 
         await mark.save();
         return mark;
+    },
+
+    addBulkTuitionMarks: async (data, teacherId) => {
+        const { subject, unitName, totalMarks, examDate, records } = data;
+
+        const marksDocs = await Promise.all(records.map(async (record) => {
+            const student = await Student.findById(record.studentId);
+            if (Number(record.marksObtained) > Number(totalMarks)) {
+                throw new Error(`Marks for student ${record.studentId} exceed total marks`);
+            }
+            return {
+                studentId: record.studentId,
+                teacherId,
+                batchId: student?.batchId,
+                category: 'tuition',
+                subject,
+                unitName,
+                marksObtained: record.marksObtained,
+                totalMarks,
+                percentage: calculatePercentage(record.marksObtained, totalMarks), // Calculate percentage
+                examDate,
+                status: 'approved',
+                submittedBy: teacherId,
+                approvedBy: teacherId
+            };
+        }));
+
+        const marks = await Marks.insertMany(marksDocs);
+        return marks;
     },
 
     approveMark: async (markId, teacherId) => {
@@ -78,14 +113,20 @@ const marksService = {
         if (!mark) throw new Error('Evaluation record not found');
         if (mark.teacherId.toString() !== teacherId.toString()) throw new Error('Permission denied');
 
-        // Capture details for notification before deletion
-        const markData = mark.toObject();
+        mark.status = 'rejected';
+        mark.rejectionReason = reason;
+        await mark.save();
 
-        // Rule: Delete rejected marks so student can resubmit
-        await Marks.findByIdAndDelete(markId);
+        marksService.notifyRejection(mark, reason);
+        return mark;
+    },
 
-        marksService.notifyRejection(markData, reason);
-        return { message: 'Submission rejected and record removed', markId };
+    rejectBulk: async (markIds, reason, teacherId) => {
+        const results = await Marks.updateMany(
+            { _id: { $in: markIds }, teacherId },
+            { $set: { status: 'rejected', rejectionReason: reason } }
+        );
+        return results;
     },
 
     editAndApprove: async (markId, newData, teacherId) => {
@@ -138,6 +179,7 @@ const marksService = {
 
         const marks = await Marks.find(query)
             .populate({ path: 'studentId', populate: { path: 'userId', select: 'name' } })
+            .populate('batchId', 'name')
             .sort({ examDate: -1 })
             .skip(skip)
             .limit(limit);
@@ -163,7 +205,7 @@ const marksService = {
         const schoolMarks = marks.filter(m => m.category === 'school');
         const tuitionMarks = marks.filter(m => m.category === 'tuition');
 
-        const avg = (arr) => arr.length ? (arr.reduce((s, c) => s + c.percentage, 0) / arr.length).toFixed(1) : 0;
+        const avg = (arr) => arr.length ? (arr.reduce((s, c) => s + (c.percentage || 0), 0) / arr.length).toFixed(1) : 0;
 
         return {
             schoolMarks,

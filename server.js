@@ -66,7 +66,7 @@ app.use('/fees', feeRoutes);
 app.use('/developer', developerRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/parent', parentRoutes);
-app.use('/parent-view', parentRoutes);
+app.use('/parent-view', require('./src/routes/parentViewRoutes'));
 app.use('/student-view', studentViewRoutes);
 app.use('/announcements', announcementRoutes);
 app.use('/notifications', notificationRoutes);

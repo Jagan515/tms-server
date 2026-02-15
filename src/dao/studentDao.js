@@ -76,7 +76,8 @@ const studentDao = {
             .skip(skip)
             .limit(limit)
             .populate('userId')
-            .populate('batchId');
+            .populate('batchId')
+            .populate({ path: 'parentId', populate: { path: 'userId' } });
     },
 
     countByTeacher: async (teacherId, search, batchId) => {

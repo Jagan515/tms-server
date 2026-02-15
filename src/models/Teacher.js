@@ -12,7 +12,7 @@ const teacherSchema = new mongoose.Schema({
         feeEmails: { type: Boolean, default: true },
         announcementEmails: { type: Boolean, default: true }
     },
-    createdAt: { type: Date, default: Date.now() }
+    createdAt: { type: Date, default: Date.now }
 });
 
 

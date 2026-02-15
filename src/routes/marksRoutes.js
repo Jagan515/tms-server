@@ -35,6 +35,7 @@ router.patch('/approve/:id', requireRole('teacher'), marksController.approveMark
 router.patch('/:id/approve', requireRole('teacher'), marksController.approveMark);
 
 // Teacher rejects submitted school marks
+router.patch('/reject-bulk', requireRole('teacher'), marksController.rejectBulk);
 router.patch('/reject/:id', requireRole('teacher'), marksController.rejectMark);
 router.patch('/:id/reject', requireRole('teacher'), marksController.rejectMark);
 

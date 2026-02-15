@@ -54,6 +54,7 @@ const teacherController = {
 
                 teacher = await Teacher.create({
                     userId,
+                    phone: user.phone || "0000000000",
                     createdBy: user.adminId || userId,
                     emailPreferences: {
                         masterToggle: true,

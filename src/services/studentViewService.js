@@ -1,4 +1,4 @@
-const AttendanceRecord = require('../models/AttendanceRecord');
+const Attendance = require('../models/Attendance');
 const Marks = require('../models/Marks');
 const Fee = require('../models/Fee');
 const Announcement = require('../models/Announcement');
@@ -15,22 +15,31 @@ const studentViewService = {
         if (!studentProfile) throw new Error('Student profile not found');
         const studentId = studentProfile._id;
 
-        const [attendanceRecords, tuitionMarks, schoolMarks, fees, announcements] = await Promise.all([
-            AttendanceRecord.find({ studentId }).populate('sessionId').sort({ createdAt: -1 }),
+        const [sessions, tuitionMarks, schoolMarks, fees, announcements] = await Promise.all([
+            Attendance.find({ 'records.studentId': studentId }).sort({ date: -1 }),
             Marks.find({ studentId, category: 'tuition' }).sort({ examDate: -1 }),
             Marks.find({ studentId, category: 'school' }).sort({ examDate: -1 }),
             Fee.find({ studentId }).sort({ year: -1, month: -1 }),
             Announcement.find({
+                teacherId: studentProfile.teacherId?._id,
                 $or: [
                     { targetAudience: 'all' },
-                    { targetAudience: 'students' }
+                    { targetAudience: 'students' },
+                    { targetAudience: 'both' }
                 ]
             }).sort({ createdAt: -1 }).limit(10)
         ]);
 
         // --- Attendance Calculations ---
-        // --- Attendance Calculations ---
-        const validRecords = attendanceRecords.filter(r => r.status != null && r.sessionId?.date);
+        const validRecords = sessions.map(s => {
+            const record = s.records.find(r => r.studentId.toString() === studentId.toString());
+            return {
+                status: record?.status,
+                date: s.date,
+                remarks: record?.remarks,
+                _id: s._id
+            };
+        }).filter(r => r.status != null);
 
         // Live Data (Current Month/Period)
         const currentTotal = validRecords.length;
@@ -49,7 +58,7 @@ const studentViewService = {
         // Current Month Stats (Reset Monthly)
         const now = new Date();
         const currentMonthRecords = validRecords.filter(r => {
-            const d = new Date(r.sessionId.date);
+            const d = new Date(r.date);
             return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         });
         const currentMonthTotal = currentMonthRecords.length;
@@ -79,12 +88,12 @@ const studentViewService = {
             },
             attendance: {
                 history: validRecords.map(r => {
-                    const dateObj = new Date(r.sessionId.date);
+                    const dateObj = new Date(r.date);
                     return {
                         _id: r._id,
-                        date: r.sessionId.date,
-                        day: dateObj.toLocaleDateString('en-US', { weekly: 'long', day: 'numeric', weekday: 'long' }), // "Monday"
-                        status: r.status.charAt(0).toUpperCase() + r.status.slice(1), // "Present"
+                        date: r.date,
+                        day: dateObj.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }),
+                        status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
                         remarks: r.remarks
                     };
                 }),
@@ -139,16 +148,73 @@ const studentViewService = {
         return await Marks.insertMany(marksDocs);
     },
 
-    getMyAttendance: async (userId) => {
-        const student = await Student.findOne({ userId });
-        const records = await AttendanceRecord.find({ studentId: student._id }).populate('sessionId');
-        return records;
+    getMyAttendance: async (userId, page = 1, limit = 10) => {
+        const student = await Student.findOne({ userId }).populate('batchId');
+        if (!student) throw new Error('Student profile not found');
+
+        const joinDate = new Date(student.createdAt);
+        joinDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Calculate total days from joining to today (inclusive)
+        const diffTime = Math.max(0, today - joinDate);
+        const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+        const skip = (page - 1) * limit;
+
+        // Generate the specific date range for this page (descending)
+        const pageDates = [];
+        for (let i = 0; i < limit; i++) {
+            const index = skip + i;
+            if (index < totalDays) {
+                const targetDate = new Date(today);
+                targetDate.setDate(targetDate.getDate() - index);
+                pageDates.push(targetDate.toISOString().split('T')[0]);
+            }
+        }
+
+        // Find all sessions for these dates matching the student's batch
+        const sessions = await Attendance.find({
+            date: { $in: pageDates.map(d => new Date(d)) },
+            batchId: student.batchId?._id
+        }).populate('teacherId', 'name');
+
+        const mappedHistory = pageDates.map(pDate => {
+            const session = sessions.find(s => s.date.toISOString().split('T')[0] === pDate);
+            const record = session ? session.records.find(r => r.studentId.toString() === student._id.toString()) : null;
+            const dateObj = new Date(pDate);
+
+            return {
+                date: pDate,
+                day: dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' }),
+                status: record ? (record.status.charAt(0).toUpperCase() + record.status.slice(1)) : 'Not Marked',
+                markedBy: session?.teacherId?.name || 'N/A',
+                remarks: record?.remarks || (session ? 'Session conducted, no specific notes.' : 'No active session recorded for this date.')
+            };
+        });
+
+        return {
+            records: mappedHistory,
+            pagination: {
+                total: totalDays,
+                page: page,
+                limit: limit,
+                pages: Math.ceil(totalDays / limit)
+            }
+        };
     },
 
     getMyMarks: async (userId) => {
         const student = await Student.findOne({ userId });
         const marks = await Marks.find({ studentId: student._id });
         return marks;
+    },
+
+    getStudentDashboard: async (studentId) => {
+        const student = await Student.findById(studentId);
+        if (!student) throw new Error('Student not found');
+        return await studentViewService.getDashboardData(student.userId);
     }
 };
 

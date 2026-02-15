@@ -5,7 +5,7 @@ const attendanceRecordSchema = new mongoose.Schema({
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     status: { type: String, enum: ['present', 'absent', 'late', 'excused'], default: 'present' },
     remarks: { type: String, required: false },
-    createdAt: { type: Date, default: Date.now() }
+    createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('AttendanceRecord', attendanceRecordSchema);

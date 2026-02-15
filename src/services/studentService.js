@@ -117,7 +117,8 @@ const studentService = {
                 feePaymentDay: data.feePaymentDay || (data.joiningDate ? new Date(data.joiningDate).getDate() : new Date().getDate()),
                 contacts: data.contacts,
                 parentId: parentRecord._id, // Link to Parent record
-                joiningDate: data.joiningDate || new Date() // Persist joining date
+                joiningDate: data.joiningDate || new Date(), // Persist joining date
+                batchId: data.batchId
             }, session);
 
             // Update Parent's studentIds array
@@ -276,21 +277,28 @@ const studentService = {
         const totalPages = Math.ceil(totalStudents / limit);
 
         // Transform data for frontend
-        const formattedStudents = students.map(student => ({
-            _id: student._id,
-            registrationNumber: student.registrationNumber,
-            name: student.userId.name,
-            class: student.class,
-            school: student.school,
-            year: student.year,
-            monthlyFee: student.monthlyFee,
-            batchId: student.batchId,
-            batchName: student.batchId ? student.batchId.name : null, // Assuming population
-            contacts: student.contacts || [],
-            parentName: student.contacts && student.contacts.length > 0 ? student.contacts[0].name : "No Contact",
-            parentEmail: student.contacts && student.contacts.length > 0 ? student.contacts[0].email : "No Email",
-            createdAt: student.createdAt
-        }));
+        const formattedStudents = students.map(student => {
+            const primaryContact = student.contacts && student.contacts.length > 0 ? student.contacts[0] : {};
+            const parentUser = student.parentId?.userId;
+
+            return {
+                _id: student._id,
+                registrationNumber: student.registrationNumber,
+                name: student.userId?.name || 'Academic Scholar',
+                class: student.class,
+                school: student.school,
+                year: student.year,
+                monthlyFee: student.monthlyFee,
+                batchId: student.batchId?._id,
+                batchName: student.batchId ? student.batchId.name : null,
+                contacts: student.contacts || [],
+                parentName: parentUser?.name || primaryContact.name || "Authorized Guardian",
+                parentEmail: parentUser?.email || primaryContact.email || "No Email",
+                parentPhone: student.parentId?.phone || primaryContact.phone || "No Phone",
+                parentRelation: primaryContact.relation || "Guardian",
+                createdAt: student.createdAt
+            };
+        });
 
         return { students: formattedStudents, totalPages };
     },

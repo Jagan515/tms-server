@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const AuditLog = require('../models/AuditLog');
-const AttendanceRecord = require('../models/AttendanceRecord');
+const Attendance = require('../models/Attendance');
 const Announcement = require('../models/Announcement');
 
 /**
@@ -26,13 +26,14 @@ const initCronJobs = () => {
         try {
             // 1. Archive current attendance stats to Student profile before deletion
             // This ensures aggregate attendance remains accurate even after details are wiped
-            const attendanceStats = await AttendanceRecord.aggregate([
+            const attendanceStats = await Attendance.aggregate([
+                { $unwind: '$records' },
                 {
                     $group: {
-                        _id: '$studentId',
+                        _id: '$records.studentId',
                         totalSessions: { $sum: 1 },
                         presentSessions: {
-                            $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] }
+                            $sum: { $cond: [{ $eq: ['$records.status', 'present'] }, 1, 0] }
                         }
                     }
                 }
@@ -57,7 +58,7 @@ const initCronJobs = () => {
             }
 
             // 2. Clear all attendance records (Monthly Reset)
-            const attendanceResult = await AttendanceRecord.deleteMany({});
+            const attendanceResult = await Attendance.deleteMany({});
             console.log(`[CRON] Monthly Reset: Deleted ${attendanceResult.deletedCount} attendance records.`);
 
             // 3. Clear all announcements

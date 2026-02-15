@@ -39,18 +39,22 @@ const authController = {
                 return response.status(400).json({ success: false, message: 'Invalid credentials' });
             }
 
+            const rememberMe = request.body.rememberMe === true;
+            const expiresIn = rememberMe ? '24h' : '1h';
+
             const token = jwt.sign({
                 name: user.name,
                 email: user.email,
                 _id: user._id,
                 role: user.role
-            }, process.env.JWT_SECRET, { expiresIn: '24h' });
+            }, process.env.JWT_SECRET, { expiresIn });
 
             response.cookie('jwtToken', token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 path: '/',
-                sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+                sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+                maxAge: rememberMe ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000 // Match cookie expiry with token
             });
 
             return response.status(200).json({

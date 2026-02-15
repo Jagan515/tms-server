@@ -26,17 +26,19 @@ const studentViewController = {
     },
 
     attendance: async (request, response) => {
-
         try {
+            const page = parseInt(request.query.page) || 1;
+            const limit = parseInt(request.query.limit) || 10;
 
             const data = await studentViewService.getMyAttendance(
-                request.user._id
+                request.user._id,
+                page,
+                limit
             );
 
             return response.status(200).json(data);
-
         } catch (error) {
-
+            console.error(error);
             return response.status(500).json({
                 message: 'Internal server error'
             });

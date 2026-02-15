@@ -200,6 +200,44 @@ const attendanceService = {
         };
     },
 
+    getGlobalHistory: async (teacherId, page = 1, limit = 10) => {
+        const skip = (page - 1) * limit;
+        const total = await Attendance.countDocuments({ teacherId, type: 'regular' });
+
+        const sessions = await Attendance.find({ teacherId, type: 'regular' })
+            .populate('batchId', 'name')
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const history = sessions.map(session => {
+            const presentCount = session.records.filter(r => r.status === 'present').length;
+            const absentCount = session.records.filter(r => r.status === 'absent').length;
+            const totalRecords = session.records.length;
+
+            return {
+                id: session._id,
+                date: session.date,
+                batchId: session.batchId?._id,
+                batchName: session.batchId?.name || 'Legacy Batch',
+                presentCount,
+                absentCount,
+                total: totalRecords,
+                percentage: totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : 0
+            };
+        });
+
+        return {
+            history,
+            pagination: {
+                total,
+                page,
+                limit,
+                pages: Math.ceil(total / limit)
+            }
+        };
+    },
+
     getStudentStats: async (studentId) => {
         const sessions = await Attendance.find({
             'records.studentId': studentId
@@ -270,6 +308,34 @@ const attendanceService = {
         } catch (e) {
             console.error('[AttendanceService] Absence Email Error:', e.message);
         }
+    },
+
+    createCustomSession: async (data, teacherId) => {
+        const { batchId, date, sessionType, records } = data;
+
+        console.log(`[AttendanceService] Creating Custom Session: ${sessionType} on ${date}`);
+
+        const sessionDate = new Date(date);
+
+        // Custom sessions allow duplicates on same date/batch if types differ, 
+        // but schema unique index (batchId, date, type) prevents same type same day.
+        // Assuming 'custom' type with 'sessionType' string.
+
+        const attendance = new Attendance({
+            teacherId,
+            batchId,
+            date: sessionDate,
+            type: 'custom',
+            sessionType: sessionType || 'Extra Class',
+            records: records.map(r => ({
+                studentId: r.studentId,
+                status: r.status,
+                remarks: r.remarks
+            }))
+        });
+
+        await attendance.save();
+        return attendance;
     },
 
     getTeacherDailyOverview: async (teacherId, date) => {

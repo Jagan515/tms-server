@@ -40,7 +40,13 @@ const marksController = {
     addTuitionMarks: async (request, response) => {
         try {
             const teacherId = request.user._id;
-            const mark = await marksService.addTuitionMarks(request.body, teacherId);
+            let mark;
+
+            if (request.body.records) {
+                mark = await marksService.addBulkTuitionMarks(request.body, teacherId);
+            } else {
+                mark = await marksService.addTuitionMarks(request.body, teacherId);
+            }
 
             return response.status(201).json({
                 message: 'Tuition marks recorded',
@@ -82,6 +88,22 @@ const marksController = {
         } catch (error) {
             console.log(error);
             return response.status(400).json({ message: error.message || 'Rejection failed' });
+        }
+    },
+
+    rejectBulk: async (request, response) => {
+        try {
+            const { ids, reason } = request.body;
+            const teacherId = request.user._id;
+            const result = await marksService.rejectBulk(ids, reason, teacherId);
+
+            return response.status(200).json({
+                message: `${result.modifiedCount} records rejected`,
+                result
+            });
+        } catch (error) {
+            console.log(error);
+            return response.status(400).json({ message: error.message || 'Bulk rejection failed' });
         }
     },
 

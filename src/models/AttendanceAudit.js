@@ -6,7 +6,7 @@ const attendanceAuditSchema = new mongoose.Schema({
     oldStatus: { type: String },
     newStatus: { type: String, required: true },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    createdAt: { type: Date, default: Date.now() }
+    createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 module.exports = mongoose.model('AttendanceAudit', attendanceAuditSchema);

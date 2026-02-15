@@ -52,14 +52,20 @@ const attendanceController = {
         }
     },
 
-    // Get Batch History
+    // Get Attendance History (Batch-specific or Global)
     getHistory: async (request, response) => {
         try {
             const { batchId } = request.params;
             const page = parseInt(request.query.page) || 1;
             const limit = parseInt(request.query.limit) || 10;
+            const teacherId = request.user._id;
 
-            const historyData = await attendanceService.getBatchHistory(batchId, page, limit);
+            let historyData;
+            if (batchId === 'all') {
+                historyData = await attendanceService.getGlobalHistory(teacherId, page, limit);
+            } else {
+                historyData = await attendanceService.getBatchHistory(batchId, page, limit);
+            }
 
             return response.status(200).json(historyData);
         } catch (error) {

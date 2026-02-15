@@ -18,7 +18,7 @@ const announcementController = {
                 if (!student) return response.status(200).json({ announcements: [] });
                 query = {
                     teacherId: student.teacherId,
-                    targetAudience: { $in: ['all', 'students'] }
+                    targetAudience: { $in: ['all', 'students', 'both'] }
                 };
             } else if (role === 'parent') {
                 const parent = await Parent.findOne({ userId });
@@ -30,7 +30,7 @@ const announcementController = {
 
                 query = {
                     teacherId: student.teacherId,
-                    targetAudience: { $in: ['all', 'parents'] }
+                    targetAudience: { $in: ['all', 'parents', 'both'] }
                 };
             }
 
@@ -84,12 +84,15 @@ const announcementController = {
                 const recipients = new Set();
 
                 students.forEach(s => {
-                    if (targetAudience === 'students' || targetAudience === 'all') {
+                    const sendToStudent = targetAudience === 'students' || targetAudience === 'all' || targetAudience === 'both';
+                    const sendToParent = targetAudience === 'parents' || targetAudience === 'all' || targetAudience === 'both';
+
+                    if (sendToStudent) {
                         if (s.userId && s.userId.email && !s.userId.email.includes('@student.local')) {
                             recipients.add(s.userId.email);
                         }
                     }
-                    if (targetAudience === 'parents' || targetAudience === 'all') {
+                    if (sendToParent) {
                         if (s.parentId && s.parentId.userId && s.parentId.userId.email) {
                             recipients.add(s.parentId.userId.email);
                         }

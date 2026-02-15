@@ -101,23 +101,13 @@ const parentViewService = {
         // Logic: Announcements targeting 'parent' or 'both'
         // AND (global OR belonging to one of the children's batches)
 
-        const children = await Student.find({ parentId }, 'batchId');
-        const batchIds = children.map(c => c.batchId).filter(id => id); // filter nulls
+        const children = await Student.find({ parentId }).populate('teacherId');
+        // Get unique teacher IDs from children
+        const teacherIds = [...new Set(children.map(c => c.teacherId?._id).filter(id => id))];
 
         const query = {
-            $or: [
-                { targetRole: 'parent' },
-                { targetRole: 'both' }
-            ],
-            $and: [
-                {
-                    $or: [
-                        { batchId: { $in: batchIds } },
-                        { batchId: null }, // Global/All batches
-                        { targetAudience: 'All' } // if targetAudience field exists
-                    ]
-                }
-            ]
+            teacherId: { $in: teacherIds },
+            targetAudience: { $in: ['all', 'parents', 'both'] }
         };
 
         const skip = (page - 1) * limit;
@@ -132,6 +122,24 @@ const parentViewService = {
                 page: Number(page),
                 limit: Number(limit)
             }
+        };
+    },
+
+    getChildDashboard: async (parentId, studentId) => {
+        // 1. Get Student Dashboard Data (Attendance, Marks, Fees, etc.)
+        const studentData = await studentViewService.getStudentDashboard(studentId);
+
+        // 2. Get Parent-Specific Announcements for this child's teacher
+        const student = await Student.findById(studentId);
+        const announcements = await Announcement.find({
+            teacherId: student.teacherId,
+            targetAudience: { $in: ['all', 'parents', 'both'] }
+        }).sort({ createdAt: -1 }).limit(20);
+
+        // 3. Return merged data
+        return {
+            ...studentData,
+            announcements: announcements // Override student announcements with parent ones
         };
     }
 
