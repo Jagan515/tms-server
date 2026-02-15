@@ -25,10 +25,30 @@ const notificationRoutes = require('./src/routes/notificationRoutes');
 const app = express();
 
 // Database Connection
-mongoose
-    .connect(process.env.MONGO_DB_CONNECTION_URL)
-    .then(() => console.log('MongoDB Connected successfully'))
-    .catch((error) => console.log('Database Connection Error:', error));
+
+let isConnected = false;
+
+async function connectDB() {
+    if (isConnected) {
+        return;
+    }
+
+    try {
+        await mongoose.connect(process.env.MONGO_DB_CONNECTION_URL);
+        isConnected = true;
+        console.log('MongoDB Connected successfully');
+    } catch (error) {
+        console.log('Database Connection Error:', error);
+    }
+}
+
+app.use((request, response, next) => {
+
+    if (!isConnected) {
+        connectDB();
+    }
+    next();
+})
 
 // Middleware Configuration
 const allowedOrigins = [
@@ -74,7 +94,10 @@ app.use('/notifications', notificationRoutes);
 // Health Check
 app.get('/health', (req, res) => res.status(200).json({ status: 'active', timestamp: new Date() }));
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-    console.log(`TMS Server running on port ${PORT}`);
-});
+// const PORT = process.env.PORT || 5001;
+// app.listen(PORT, () => {
+//     console.log(`TMS Server running on port ${PORT}`);
+// });
+
+module.exports = app;
+
