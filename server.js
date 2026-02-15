@@ -57,20 +57,25 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
 
-        // Check if origin is localhost (any port)
-        const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+        const isLocalhost =
+            origin.startsWith('http://localhost:') ||
+            origin.startsWith('http://127.0.0.1:');
 
-        if (allowedOrigins.indexOf(origin) !== -1 || isLocalhost) {
+        if (
+            allowedOrigins.includes(origin) ||
+            isLocalhost
+        ) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            console.log("Blocked by CORS:", origin);
+            callback(new Error("Not allowed by CORS"));
         }
     },
-    credentials: true,
+    credentials: true
 };
+
 
 app.use(cors(corsOptions));
 app.use(express.json());
