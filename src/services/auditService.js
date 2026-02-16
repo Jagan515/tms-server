@@ -53,17 +53,19 @@ const auditService = {
             ].filter(cond => cond.entityId !== undefined || !cond.entityId);
         }
 
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        query.createdAt = { $gte: oneHourAgo };
+        // Default window: 7 days instead of 1 hour to ensure logs are visible
+        const defaultWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        query.createdAt = { $gte: defaultWindow };
 
         if (filters.startDate || filters.endDate) {
-            // If user provides specific dates, we still respect the 1-hour ceiling 
-            // but let them filter within that hour if they want.
+            // Re-initialize query.createdAt if specific range is provided
+            query.createdAt = {};
             if (filters.startDate) {
-                const start = new Date(filters.startDate);
-                query.createdAt.$gte = start > oneHourAgo ? start : oneHourAgo;
+                query.createdAt.$gte = new Date(filters.startDate);
             }
-            if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
+            if (filters.endDate) {
+                query.createdAt.$lte = new Date(filters.endDate);
+            }
         }
 
         const skip = (page - 1) * limit;

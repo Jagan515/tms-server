@@ -120,6 +120,15 @@ const developerController = {
                 return response.status(404).json({ message: 'Teacher identity or user profile not found for the requested sync.' });
             }
 
+            await auditService.log({
+                userId: request.user._id,
+                actionType: isActive ? 'AUTHORIZE_TEACHER' : 'REVOKE_TEACHER',
+                entityType: 'User',
+                entityId: id,
+                newValue: { isActive },
+                metadata: { teacherId: updatedTeacher._id, name: updatedTeacher.userId?.name }
+            });
+
             return response.status(200).json({
                 message: `Teacher account ${isActive ? 'authorized' : 'revoked'} successfully`,
                 teacher: updatedTeacher
@@ -147,6 +156,14 @@ const developerController = {
             if (!tDelete || !uDelete) {
                 return response.status(404).json({ message: 'Teacher profile or administrative identity record not found for permanent removal.' });
             }
+
+            await auditService.log({
+                userId: request.user._id,
+                actionType: 'DELETE_TEACHER',
+                entityType: 'User',
+                entityId: id,
+                metadata: { note: 'Permanent account and profile removal' }
+            });
 
             return response.status(200).json({
                 message: 'Teacher account and related lifecycle data removed successfully'
@@ -239,6 +256,15 @@ const developerController = {
                 `Welcome ${name},\n\nYour teacher account has been created.\n\nLogin URL: http://tuitionapp.test/login\nEmail: ${email}\nTemporary Password: ${actualPassword}\n\nPlease change your password upon first login.`
             ).catch(e => console.error('Failed to send welcome email:', e.message));
 
+            await auditService.log({
+                userId: request.user._id,
+                actionType: 'CREATE_TEACHER',
+                entityType: 'Teacher',
+                entityId: newTeacher._id,
+                newValue: { email, name },
+                metadata: { userId: newUser._id }
+            });
+
             return response.status(201).json({
                 message: 'Teacher account created successfully',
                 data: {
@@ -293,6 +319,14 @@ const developerController = {
                 'Tuition App - Password Reset',
                 `Your password has been reset by the administrator.\n\nNew Temporary Password: ${actualPassword}\n\nPlease update your password immediately.`
             ).catch(e => console.error('Failed to send reset email:', e.message));
+
+            await auditService.log({
+                userId: request.user._id,
+                actionType: 'RESET_PASSWORD',
+                entityType: 'User',
+                entityId: targetUserId,
+                metadata: { email: user.email, resetBy: 'Developer' }
+            });
 
             return response.status(200).json({
                 message: 'Teacher password has been reset',
