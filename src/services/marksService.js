@@ -63,6 +63,17 @@ const marksService = {
         });
 
         await mark.save();
+
+        const auditService = require('./auditService');
+        await auditService.log({
+            userId: teacherId,
+            actionType: 'ADD_MARKS',
+            entityType: 'Marks',
+            entityId: mark._id,
+            newValue: { marksObtained, totalMarks, subject },
+            metadata: { studentId }
+        });
+
         return mark;
     },
 
@@ -105,6 +116,16 @@ const marksService = {
         await mark.save();
 
         marksService.notifyVerification(mark, 'Approved');
+
+        const auditService = require('./auditService');
+        await auditService.log({
+            userId: teacherId,
+            actionType: 'APPROVE_MARKS',
+            entityType: 'Marks',
+            entityId: mark._id,
+            metadata: { subject: mark.subject }
+        });
+
         return mark;
     },
 
@@ -118,6 +139,16 @@ const marksService = {
         await mark.save();
 
         marksService.notifyRejection(mark, reason);
+
+        const auditService = require('./auditService');
+        await auditService.log({
+            userId: teacherId,
+            actionType: 'REJECT_MARKS',
+            entityType: 'Marks',
+            entityId: mark._id,
+            metadata: { subject: mark.subject, reason }
+        });
+
         return mark;
     },
 

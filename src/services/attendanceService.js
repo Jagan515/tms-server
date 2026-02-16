@@ -58,6 +58,15 @@ const attendanceService = {
 
         await attendance.save();
 
+        const auditService = require('./auditService');
+        await auditService.log({
+            userId: teacherId,
+            actionType: 'CREATE_ATTENDANCE',
+            entityType: 'Attendance',
+            entityId: attendance._id,
+            metadata: { batchId, date: sessionDate }
+        });
+
         const populated = await Attendance.findById(attendance._id).populate({
             path: 'records.studentId',
             populate: { path: 'userId', select: 'name' }
@@ -126,6 +135,16 @@ const attendanceService = {
         });
 
         await attendance.save();
+
+        const auditService = require('./auditService');
+        await auditService.log({
+            userId: teacherId,
+            actionType: 'CREATE_CUSTOM_ATTENDANCE',
+            entityType: 'Attendance',
+            entityId: attendance._id,
+            metadata: { date: sessionDate, studentCount: studentIds.length, sessionType: sessionType }
+        });
+
         return attendance.populate({
             path: 'records.studentId',
             populate: { path: 'userId', select: 'name' }
@@ -160,6 +179,16 @@ const attendanceService = {
                 }
             }
             await attendance.save();
+
+            const auditService = require('./auditService');
+            await auditService.log({
+                userId: teacherId,
+                actionType: 'BULK_UPDATE_ATTENDANCE',
+                entityType: 'Attendance',
+                entityId: attendanceId,
+                newValue: { status },
+                metadata: { emailSent: sendEmail }
+            });
         }
 
         return attendance;

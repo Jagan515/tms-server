@@ -152,6 +152,16 @@ const feeService = {
 
             if (transactionStarted) await session.commitTransaction();
 
+            const auditService = require('./auditService');
+            await auditService.log({
+                userId: teacherId,
+                actionType: 'PROCESS_PAYMENT',
+                entityType: 'Fee',
+                entityId: history._id,
+                newValue: { totalAmount, paymentMethod },
+                metadata: { studentId, monthsPaid: feeIds.length }
+            });
+
             // Async email (best effort)
             try {
                 const student = await Student.findById(sId).populate({
