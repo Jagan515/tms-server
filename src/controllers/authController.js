@@ -51,10 +51,10 @@ const authController = {
 
             response.cookie('jwtToken', token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
+                secure: true, // Required for sameSite: 'none'
                 path: '/',
-                sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-                maxAge: rememberMe ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000 // Match cookie expiry with token
+                sameSite: 'none',
+                maxAge: rememberMe ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000
             });
 
             return response.status(200).json({
