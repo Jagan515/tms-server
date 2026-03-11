@@ -1,94 +1,68 @@
 const batchService = require('../services/batchService');
+const asyncHandler = require('../utility/asyncHandler');
+const ApiError = require('../utility/apiError');
 
 const batchController = {
-    getAll: async (request, response) => {
-        try {
-            const { page, limit, search } = request.query;
-            const teacherId = request.user._id;
+    getAll: asyncHandler(async (request, response) => {
+        const { page, limit, search } = request.query;
+        const teacherId = request.user._id;
 
-            const isAll = limit === 'all';
-            const data = await batchService.getAllBatches(
-                teacherId,
-                isAll ? 1 : (Number(page) || 1),
-                isAll ? 1000 : (Number(limit) || 10),
-                search || ''
-            );
+        const isAll = limit === 'all';
+        const data = await batchService.getAllBatches(
+            teacherId,
+            isAll ? 1 : (Number(page) || 1),
+            isAll ? 1000 : (Number(limit) || 10),
+            search || ''
+        );
 
-            return response.status(200).json(data);
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
+        return response.status(200).json(data);
+    }),
+
+    getDetail: asyncHandler(async (request, response) => {
+        const { id } = request.params;
+        const data = await batchService.getBatchDetails(id);
+        if (!data) {
+            throw new ApiError(404, 'Batch profile not identified in registry.');
         }
-    },
+        return response.status(200).json(data);
+    }),
 
-    getDetail: async (request, response) => {
-        try {
-            const { id } = request.params;
-            const data = await batchService.getBatchDetails(id);
-            return response.status(200).json(data);
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    },
+    create: asyncHandler(async (request, response) => {
+        const teacherId = request.user._id;
+        const batch = await batchService.createBatch(request.body, teacherId);
 
-    create: async (request, response) => {
-        try {
-            const teacherId = request.user._id;
-            const batch = await batchService.createBatch(request.body, teacherId);
+        return response.status(201).json({
+            message: 'Batch created successfully',
+            batch: batch
+        });
+    }),
 
-            return response.status(201).json({
-                message: 'Batch created successfully',
-                batch: batch
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(400).json({ message: error.message || 'Creation failed' });
-        }
-    },
+    update: asyncHandler(async (request, response) => {
+        const { id } = request.params;
+        const updated = await batchService.updateBatch(id, request.body);
 
-    update: async (request, response) => {
-        try {
-            const { id } = request.params;
-            const updated = await batchService.updateBatch(id, request.body);
+        return response.status(200).json({
+            message: 'Batch updated successfully',
+            batch: updated
+        });
+    }),
 
-            return response.status(200).json({
-                message: 'Batch updated successfully',
-                batch: updated
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(400).json({ message: error.message || 'Update failed' });
-        }
-    },
+    delete: asyncHandler(async (request, response) => {
+        const { id } = request.params;
+        await batchService.deleteBatch(id);
+        return response.status(200).json({
+            message: 'Batch deleted successfully'
+        });
+    }),
 
-    delete: async (request, response) => {
-        try {
-            const { id } = request.params;
-            await batchService.deleteBatch(id);
-            return response.status(200).json({
-                message: 'Batch deleted successfully'
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    },
-
-    // Added to prevent crash
-    getStats: async (request, response) => {
-        try {
-            const teacherId = request.user._id;
-            const result = await batchService.getAllBatches(teacherId, 1, 1000);
-            return response.status(200).json({
-                totalBatches: result.batches.length,
-                totalStudents: result.batches.reduce((acc, b) => acc + (b.studentCount || 0), 0)
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    }
+    getStats: asyncHandler(async (request, response) => {
+        const teacherId = request.user._id;
+        const result = await batchService.getAllBatches(teacherId, 1, 1000);
+        return response.status(200).json({
+            totalBatches: result.batches.length,
+            totalStudents: result.batches.reduce((acc, b) => acc + (b.studentCount || 0), 0)
+        });
+    })
 };
 
 module.exports = batchController;

@@ -188,8 +188,8 @@ const dashboardService = {
         // 11️⃣ Pending Marks (School Marks needs approval)
         const pendingMarksCount = await Marks.countDocuments({
             teacherId,
-            type: 'School',
-            status: 'Pending'
+            category: 'school',
+            status: 'pending'
         });
 
         return {

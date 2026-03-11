@@ -4,9 +4,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const { TEACHER_ROLE } = require('../utility/userRoles');
+const ApiError = require('../utility/apiError');
+const asyncHandler = require('../utility/asyncHandler');
 
 const authController = {
-    login: async (request, response) => {
+    login: asyncHandler(async (request, response) => {
         const rawEmail = request.body.email;
         const rawRegNo = request.body.registrationNumber;
         const password = request.body.password;
@@ -14,67 +16,62 @@ const authController = {
         const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
         const registrationNumber = (rawRegNo != null && rawRegNo !== '') ? String(rawRegNo).trim() : '';
 
-        try {
-            let user;
-            // Support login via email OR registration number (normalized for reliable lookup)
-            if (registrationNumber) {
-                const student = await studentDao.findByRegistrationNumber(registrationNumber);
-                if (student && student.userId) {
-                    user = student.userId;
-                }
-            } else if (email) {
-                user = await userDao.findByEmailCaseInsensitive(email);
+        let user;
+        // Support login via email OR registration number (normalized for reliable lookup)
+        if (registrationNumber) {
+            const student = await studentDao.findByRegistrationNumber(registrationNumber);
+            if (student && student.userId) {
+                user = student.userId;
             }
-
-            if (!user) {
-                return response.status(400).json({ success: false, message: 'Invalid credentials' });
-            }
-
-            if (user.isActive === false) {
-                return response.status(403).json({ success: false, message: 'Account is deactivated. Contact support.' });
-            }
-
-            const isPasswordMatched = password && user.password && await bcrypt.compare(password, user.password);
-            if (!isPasswordMatched) {
-                return response.status(400).json({ success: false, message: 'Invalid credentials' });
-            }
-
-            const rememberMe = request.body.rememberMe === true;
-            const expiresIn = rememberMe ? '24h' : '1h';
-
-            const token = jwt.sign({
-                name: user.name,
-                email: user.email,
-                _id: user._id,
-                role: user.role
-            }, process.env.JWT_SECRET, { expiresIn });
-
-            response.cookie('jwtToken', token, {
-                httpOnly: true,
-                secure: true, // Required for sameSite: 'none'
-                path: '/',
-                sameSite: 'none',
-                maxAge: rememberMe ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000
-            });
-
-            return response.status(200).json({
-                success: true,
-                message: 'User authenticated',
-                data: {
-                    user: {
-                        _id: user._id,
-                        name: user.name,
-                        email: user.email,
-                        role: user.role,
-                        requirePasswordChange: user.requirePasswordChange ?? false
-                    }
-                }
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ success: false, message: 'Internal server error' });
+        } else if (email) {
+            user = await userDao.findByEmailCaseInsensitive(email);
         }
-    },
+
+        if (!user) {
+            throw new ApiError(400, 'Invalid credentials');
+        }
+
+        if (user.isActive === false) {
+            throw new ApiError(403, 'Account is deactivated. Contact support.');
+        }
+
+        const isPasswordMatched = password && user.password && await bcrypt.compare(password, user.password);
+        if (!isPasswordMatched) {
+            throw new ApiError(400, 'Invalid credentials');
+        }
+
+        const rememberMe = request.body.rememberMe === true;
+        const expiresIn = rememberMe ? '24h' : '1h';
+
+        const token = jwt.sign({
+            name: user.name,
+            email: user.email,
+            _id: user._id,
+            role: user.role
+        }, process.env.JWT_SECRET, { expiresIn });
+
+        response.cookie('jwtToken', token, {
+            httpOnly: true,
+            secure: true, // Required for sameSite: 'none'
+            path: '/',
+            sameSite: 'none',
+            maxAge: rememberMe ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000
+        });
+
+        return response.status(200).json({
+            success: true,
+            message: 'User authenticated',
+            data: {
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    requirePasswordChange: user.requirePasswordChange ?? false
+                }
+            }
+        });
+    }),
 
     register: async (request, response) => {
         // ... keeping existing register for fallback, though Developer usually handles this ...

@@ -32,4 +32,10 @@ router.get(
     batchController.getStats
 );
 
+router.get(
+    '/:id',
+    authorizeMiddleware('batches:view'),
+    batchController.getDetail
+);
+
 module.exports = router;

@@ -114,24 +114,36 @@ const attendanceService = {
      * Creates a custom/extra session for specific students
      */
     createCustomSession: async (data, teacherId) => {
-        const { date, studentIds, sessionType, sessionTime, remarks } = data;
+        const { batchId, date, sessionType, records, studentIds, sessionTime, remarks } = data;
+
+        console.log(`[AttendanceService] Creating Custom Session: ${sessionType} on ${date}`);
 
         const sessionDate = new Date(date);
         sessionDate.setHours(0, 0, 0, 0);
 
-        const records = studentIds.map(sId => ({
-            studentId: sId,
-            status: 'present',
-            remarks: remarks || ''
-        }));
+        let finalRecords = [];
+        if (records && records.length > 0) {
+            finalRecords = records.map(r => ({
+                studentId: r.studentId,
+                status: r.status,
+                remarks: r.remarks || remarks || ''
+            }));
+        } else if (studentIds && studentIds.length > 0) {
+            finalRecords = studentIds.map(sId => ({
+                studentId: sId,
+                status: 'present',
+                remarks: remarks || ''
+            }));
+        }
 
         const attendance = new Attendance({
             teacherId,
+            batchId: batchId || null,
             date: sessionDate,
             type: 'custom',
             sessionType: sessionType || 'Extra Class',
             sessionTime: sessionTime || '',
-            records: records
+            records: finalRecords
         });
 
         await attendance.save();
@@ -142,7 +154,7 @@ const attendanceService = {
             actionType: 'CREATE_CUSTOM_ATTENDANCE',
             entityType: 'Attendance',
             entityId: attendance._id,
-            metadata: { date: sessionDate, studentCount: studentIds.length, sessionType: sessionType }
+            metadata: { date: sessionDate, studentCount: finalRecords.length, sessionType: sessionType }
         });
 
         return attendance.populate({
@@ -337,34 +349,6 @@ const attendanceService = {
         } catch (e) {
             console.error('[AttendanceService] Absence Email Error:', e.message);
         }
-    },
-
-    createCustomSession: async (data, teacherId) => {
-        const { batchId, date, sessionType, records } = data;
-
-        console.log(`[AttendanceService] Creating Custom Session: ${sessionType} on ${date}`);
-
-        const sessionDate = new Date(date);
-
-        // Custom sessions allow duplicates on same date/batch if types differ, 
-        // but schema unique index (batchId, date, type) prevents same type same day.
-        // Assuming 'custom' type with 'sessionType' string.
-
-        const attendance = new Attendance({
-            teacherId,
-            batchId,
-            date: sessionDate,
-            type: 'custom',
-            sessionType: sessionType || 'Extra Class',
-            records: records.map(r => ({
-                studentId: r.studentId,
-                status: r.status,
-                remarks: r.remarks
-            }))
-        });
-
-        await attendance.save();
-        return attendance;
     },
 
     getTeacherDailyOverview: async (teacherId, date) => {

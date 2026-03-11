@@ -80,29 +80,57 @@ const marksService = {
     addBulkTuitionMarks: async (data, teacherId) => {
         const { subject, unitName, totalMarks, examDate, records } = data;
 
-        const marksDocs = await Promise.all(records.map(async (record) => {
-            const student = await Student.findById(record.studentId);
-            if (Number(record.marksObtained) > Number(totalMarks)) {
-                throw new Error(`Marks for student ${record.studentId} exceed total marks`);
+        if (!records || !Array.isArray(records) || records.length === 0) {
+            throw new Error('No assessment records provided for storage.');
+        }
+
+        // Fetch all students in one go for efficiency
+        const studentIds = records.map(r => r.studentId);
+        const students = await Student.find({ _id: { $in: studentIds } });
+        const studentMap = students.reduce((map, s) => {
+            map[s._id.toString()] = s;
+            return map;
+        }, {});
+
+        const marksDocs = records.map((record) => {
+            const student = studentMap[record.studentId.toString()];
+            if (!student) {
+                throw new Error(`Student profile ${record.studentId} not identified in registry.`);
             }
+
+            const marksObtained = Number(record.marksObtained);
+            if (marksObtained > Number(totalMarks)) {
+                throw new Error(`Integrity Error: ${student.registrationNumber} marks exceed total scale.`);
+            }
+
             return {
-                studentId: record.studentId,
+                studentId: student._id,
                 teacherId,
-                batchId: student?.batchId,
+                batchId: student.batchId,
                 category: 'tuition',
                 subject,
                 unitName,
-                marksObtained: record.marksObtained,
+                marksObtained,
                 totalMarks,
-                percentage: calculatePercentage(record.marksObtained, totalMarks), // Calculate percentage
+                percentage: calculatePercentage(marksObtained, totalMarks),
                 examDate,
                 status: 'approved',
                 submittedBy: teacherId,
                 approvedBy: teacherId
             };
-        }));
+        });
 
         const marks = await Marks.insertMany(marksDocs);
+
+        // Log bulk action once
+        const auditService = require('./auditService');
+        await auditService.log({
+            userId: teacherId,
+            actionType: 'BULK_ADD_MARKS',
+            entityType: 'Marks',
+            metadata: { count: records.length, subject, unitName }
+        });
+
         return marks;
     },
 

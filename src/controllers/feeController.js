@@ -1,117 +1,86 @@
 const feeService = require('../services/feeService');
+const asyncHandler = require('../utility/asyncHandler');
+const ApiError = require('../utility/apiError');
+const Student = require('../models/Student');
 
 const feeController = {
-    getRegistry: async (request, response) => {
-        try {
-            const { month, year, batchId } = request.query;
-            const teacherId = request.user._id;
+    getRegistry: asyncHandler(async (request, response) => {
+        const { month, year, batchId } = request.query;
+        const teacherId = request.user._id;
 
-            const fees = await feeService.getRegistry(teacherId, { month, year, batchId });
-            return response.status(200).json({
-                fees: fees
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
+        const fees = await feeService.getRegistry(teacherId, { month, year, batchId });
+        return response.status(200).json({
+            fees: fees
+        });
+    }),
+
+    getDefaulters: asyncHandler(async (request, response) => {
+        const { minMonths, batchId } = request.query;
+        const teacherId = request.user._id;
+
+        const defaulters = await feeService.getDefaulters(teacherId, minMonths || 1, batchId);
+        return response.status(200).json({
+            defaulters: defaulters
+        });
+    }),
+
+    getPaymentHistory: asyncHandler(async (request, response) => {
+        const { batchId } = request.query;
+        const teacherId = request.user._id;
+
+        const history = await feeService.getAllPaymentHistory(teacherId, batchId);
+        return response.status(200).json({
+            history: history
+        });
+    }),
+
+    recordPayment: asyncHandler(async (request, response) => {
+        const teacherId = request.user._id;
+        const history = await feeService.processPayment(request.body, teacherId);
+
+        return response.status(200).json({
+            message: 'Payment recorded successfully',
+            history: history
+        });
+    }),
+
+    runAutoGeneration: asyncHandler(async (request, response) => {
+        const result = await feeService.autoGenerateMonthlyFees();
+        return response.status(200).json({
+            message: 'Auto-generation process completed',
+            ...result
+        });
+    }),
+
+    getStudentFees: asyncHandler(async (request, response) => {
+        const { studentId } = request.params;
+        const fees = await feeService.getFeesByStudent(studentId);
+        const summary = await feeService.getPendingSummary(studentId);
+
+        return response.status(200).json({
+            fees: fees,
+            summary: summary
+        });
+    }),
+
+    getMyFees: asyncHandler(async (request, response) => {
+        const userId = request.user._id;
+        const studentProfile = await Student.findOne({ userId });
+        if (!studentProfile) {
+            throw new ApiError(404, 'Profile not identified in registry.');
         }
-    },
 
-    getDefaulters: async (request, response) => {
-        try {
-            const { minMonths, batchId } = request.query;
-            const teacherId = request.user._id;
+        const fees = await feeService.getFeesByStudent(studentProfile._id);
+        const summary = await feeService.getPendingSummary(studentProfile._id);
 
-            const defaulters = await feeService.getDefaulters(teacherId, minMonths || 1, batchId);
-            return response.status(200).json({
-                defaulters: defaulters
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    },
-
-    getPaymentHistory: async (request, response) => {
-        try {
-            const { batchId } = request.query;
-            const teacherId = request.user._id;
-
-            const history = await feeService.getAllPaymentHistory(teacherId, batchId);
-            return response.status(200).json({
-                history: history
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    },
-
-    recordPayment: async (request, response) => {
-        try {
-            const teacherId = request.user._id;
-            const history = await feeService.processPayment(request.body, teacherId);
-
-            return response.status(200).json({
-                message: 'Payment recorded successfully',
-                history: history
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(400).json({ message: error.message || 'Payment recording failed' });
-        }
-    },
-
-    runAutoGeneration: async (request, response) => {
-        try {
-            const result = await feeService.autoGenerateMonthlyFees();
-            return response.status(200).json({
-                message: 'Auto-generation process completed',
-                ...result
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    },
-
-    getStudentFees: async (request, response) => {
-        try {
-            const { studentId } = request.params;
-            const fees = await feeService.getFeesByStudent(studentId);
-            const summary = await feeService.getPendingSummary(studentId);
-
-            return response.status(200).json({
-                fees: fees,
-                summary: summary
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    },
-
-    getMyFees: async (request, response) => {
-        try {
-            const userId = request.user._id;
-            const Student = require('../models/Student');
-            const studentProfile = await Student.findOne({ userId });
-            if (!studentProfile) return response.status(404).json({ message: 'Profile not found' });
-
-            const fees = await feeService.getFeesByStudent(studentProfile._id);
-            const summary = await feeService.getPendingSummary(studentProfile._id);
-
-            return response.status(200).json({
-                fees,
-                summary,
-                monthlyFee: studentProfile.monthlyFee,
-                dueDay: studentProfile.feePaymentDay,
-                joiningDate: studentProfile.joiningDate
-            });
-        } catch (error) {
-            console.log(error);
-            return response.status(500).json({ message: 'Internal server error' });
-        }
-    }
+        return response.status(200).json({
+            fees,
+            summary,
+            monthlyFee: studentProfile.monthlyFee,
+            dueDay: studentProfile.feePaymentDay,
+            joiningDate: studentProfile.joiningDate
+        });
+    })
 };
 
 module.exports = feeController;
